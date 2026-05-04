@@ -29,10 +29,8 @@ import random
 from email.message import EmailMessage
 from fastapi.middleware.cors import CORSMiddleware
 
-# Get the absolute path to the backend directory
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-ENV_PATH = os.path.join(BASE_DIR, ".env")
-load_dotenv(ENV_PATH)  #LOAD VARIABLE FROM .env file
+
+load_dotenv()  #LOAD VARIABLE FROM .env file
 
 SENDER_EMAIL = os.getenv("EMAIL")   #ENVORONMENT VARIABLE
 APP_PASSWORD = os.getenv("EMAIL_PASS") #ENVORONMENT VARIABLE
@@ -115,6 +113,10 @@ def _send_email_sync(to_email, body, subject="OTP"):
     except Exception as e:
         print(f"Failed to send email to {to_email}: {str(e)}")
 
+def send_email(background_tasks: BackgroundTasks, to_email, body, subject="OTP"):
+    """Send email in a background task so it doesn't block the API response."""
+    background_tasks.add_task(_send_email_sync, to_email, body, subject)
+
 @app.get("/test-email", tags=["🔧 DEBUG"], summary="Test Email Sending")
 def test_email_endpoint(to_email: str):
     """Debug endpoint to test email sending and see the exact error."""
@@ -177,7 +179,10 @@ def signup(
     db.add(new_user)
     db.commit()
      #SAFE EMAIL CALL
-    background_tasks.add_task(_send_email_sync, email, f"Your OTP is {otp}", "OTP for Signup")
+    try:
+        background_tasks.add_task(_send_email_sync, email, f"Your OTP is {otp}", "OTP for Signup") #Here email is the receiver's email
+    except Exception as e: 
+        print("Email error:", e)
         
     return {
         "message": f"{role} created successfully ,verify OTP",

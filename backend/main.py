@@ -29,8 +29,10 @@ import random
 from email.message import EmailMessage
 from fastapi.middleware.cors import CORSMiddleware
 
-
-load_dotenv()  #LOAD VARIABLE FROM .env file
+# Get the absolute path to the backend directory
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, ".env")
+load_dotenv(ENV_PATH)  #LOAD VARIABLE FROM .env file
 
 SENDER_EMAIL = os.getenv("EMAIL")   #ENVORONMENT VARIABLE
 APP_PASSWORD = os.getenv("EMAIL_PASS") #ENVORONMENT VARIABLE

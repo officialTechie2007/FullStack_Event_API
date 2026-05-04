@@ -27,6 +27,7 @@ import smtplib
 from dotenv import load_dotenv
 import random
 from email.message import EmailMessage
+from fastapi.middleware.cors import CORSMiddleware
 
 
 load_dotenv()  #LOAD VARIABLE FROM .env file
@@ -41,6 +42,14 @@ APP_PASSWORD = os.getenv("EMAIL_PASS") #ENVORONMENT VARIABLE
 app = FastAPI(title="Role-Based Event Management System using FastAPI",
     description="This API allows users to register, login, view events and allows admins to manage events and registrations.",
     version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # or your Vercel URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 security = HTTPBearer()
 
@@ -74,8 +83,11 @@ def admin_only(user=Depends(get_current_user), db: Session = Depends(get_db)):
 
     return db_user
 
+import threading  # for background email sending
+
 #EMAIL SENDER (Gmail → always use 16 digit App password of sender email)
-def send_email(to_email, body, subject="OTP"):
+def _send_email_sync(to_email, body, subject="OTP"):
+    """Internal function that actually sends the email (runs in background thread)."""
     if not SENDER_EMAIL or not APP_PASSWORD:
         print(f"\n{'='*40}")
         print(f"📧 MOCK EMAIL SENT (No .env credentials found)")
@@ -92,13 +104,20 @@ def send_email(to_email, body, subject="OTP"):
         msg['From'] = SENDER_EMAIL
         msg['To'] = to_email
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)  # 10 second timeout
         server.starttls()
         server.login(SENDER_EMAIL, APP_PASSWORD)
         server.send_message(msg)
         server.quit()
+        print(f"✅ Email sent to {to_email}")
     except Exception as e:
         print(f"Failed to send email to {to_email}: {str(e)}")
+
+def send_email(to_email, body, subject="OTP"):
+    """Send email in a background thread so it doesn't block the API response."""
+    thread = threading.Thread(target=_send_email_sync, args=(to_email, body, subject))
+    thread.daemon = True
+    thread.start()
 
 
 #==================================AUTH PANEL=======================
@@ -239,7 +258,12 @@ def login(email: str, password: str, db: Session = Depends(get_db)):
     if not user.is_verified:
         raise HTTPException(status_code=403, detail="Email not verified. Please verify OTP first.")
     
-    token = create_token({"user_id": user.id})
+    token = create_token({
+        "user_id": user.id,
+        "role": user.role,
+        "name": user.name,
+        "email": user.email
+    })
 
     return {"access_token": token}
 

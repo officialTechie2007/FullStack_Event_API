@@ -24,6 +24,8 @@ from auth import generate_otp #EXTRA
 from fastapi import FastAPI
 import os
 import smtplib
+import json
+import urllib.request
 from dotenv import load_dotenv
 import random
 from email.message import EmailMessage
@@ -87,7 +89,37 @@ import threading  # for background email sending
 
 #EMAIL SENDER (Gmail → always use 16 digit App password of sender email)
 def _send_email_sync(to_email, body, subject="OTP"):
-    """Internal function that actually sends the email (runs in background thread)."""
+    """Internal function that actually sends the email (runs in background task)."""
+    
+    # ==========================================
+    # 🚀 OPTION 1: BREVO API (Highly Recommended for Render)
+    # ==========================================
+    brevo_api_key = os.getenv("BREVO_API_KEY")
+    if brevo_api_key and SENDER_EMAIL:
+        try:
+            url = "https://api.brevo.com/v3/smtp/email"
+            headers = {
+                "accept": "application/json",
+                "api-key": brevo_api_key,
+                "content-type": "application/json"
+            }
+            data = {
+                "sender": {"name": "Event App", "email": SENDER_EMAIL},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "textContent": body
+            }
+            req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), headers=headers, method="POST")
+            with urllib.request.urlopen(req) as response:
+                print(f"✅ Email sent to {to_email} via Brevo API")
+            return
+        except Exception as e:
+            print(f"Failed to send email via Brevo API: {str(e)}")
+            return # If API fails, stop here to avoid duplicate errors
+
+    # ==========================================
+    # 🐌 OPTION 2: GMAIL SMTP (Fallback)
+    # ==========================================
     if not SENDER_EMAIL or not APP_PASSWORD:
         print(f"\n{'='*40}")
         print(f"📧 MOCK EMAIL SENT (No .env credentials found)")

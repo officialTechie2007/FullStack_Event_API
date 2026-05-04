@@ -119,6 +119,29 @@ def send_email(to_email, body, subject="OTP"):
     thread.daemon = True
     thread.start()
 
+@app.get("/test-email", tags=["🔧 DEBUG"], summary="Test Email Sending")
+def test_email_endpoint(to_email: str):
+    """Debug endpoint to test email sending and see the exact error."""
+    if not SENDER_EMAIL or not APP_PASSWORD:
+        return {"status": "error", "message": "EMAIL or EMAIL_PASS environment variables are missing on the server!"}
+    
+    try:
+        msg = EmailMessage()
+        msg.set_content("This is a test email from the Render deployment.")
+        msg['Subject'] = "Test Email"
+        msg['From'] = SENDER_EMAIL
+        msg['To'] = to_email
+
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=10)
+        server.starttls()
+        server.login(SENDER_EMAIL, APP_PASSWORD)
+        server.send_message(msg)
+        server.quit()
+        return {"status": "success", "message": f"Email sent successfully to {to_email}"}
+    except Exception as e:
+        return {"status": "error", "message": f"Failed to send email: {str(e)}"}
+
+
 
 #==================================AUTH PANEL=======================
 #The endpoint SIGNUP FOR USER AND ADMIN

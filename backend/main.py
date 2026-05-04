@@ -1,5 +1,5 @@
 #LINK SECTION
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import Base, User
@@ -113,12 +113,6 @@ def _send_email_sync(to_email, body, subject="OTP"):
     except Exception as e:
         print(f"Failed to send email to {to_email}: {str(e)}")
 
-def send_email(to_email, body, subject="OTP"):
-    """Send email in a background thread so it doesn't block the API response."""
-    thread = threading.Thread(target=_send_email_sync, args=(to_email, body, subject))
-    thread.daemon = True
-    thread.start()
-
 @app.get("/test-email", tags=["🔧 DEBUG"], summary="Test Email Sending")
 def test_email_endpoint(to_email: str):
     """Debug endpoint to test email sending and see the exact error."""
@@ -152,6 +146,7 @@ def signup(
     name: str,
     email: str,
     password: str,
+    background_tasks: BackgroundTasks,
     role: str = "user",   # 🔥 default role
     db: Session = Depends(get_db)
 ):
@@ -180,10 +175,7 @@ def signup(
     db.add(new_user)
     db.commit()
      #SAFE EMAIL CALL
-    try:
-        send_email(email, f"Your OTP is {otp}", subject="OTP for Signup") #Here email is the receiver's email
-    except Exception as e: 
-        print("Email error:", e)
+    background_tasks.add_task(_send_email_sync, email, f"Your OTP is {otp}", "OTP for Signup")
         
     return {
         "message": f"{role} created successfully ,verify OTP",
@@ -213,7 +205,7 @@ def verify(email: str, otp: str, db: Session = Depends(get_db)):
 
 #This endpoint is to Reset OTP
 @app.post("/resend-otp", tags=["🔐 AUTH PANEL"], summary="Resend OTP")
-def resend_otp(email: str, db: Session = Depends(get_db)):
+def resend_otp(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
 
     user = db.query(User).filter(User.email == email).first()
     if not user:
@@ -224,13 +216,13 @@ def resend_otp(email: str, db: Session = Depends(get_db)):
     user.otp = otp
     user.otp_expiry = expiry
     db.commit()
-    send_email(email, f"Your OTP is {otp}", subject="New OTP")
+    background_tasks.add_task(_send_email_sync, email, f"Your OTP is {otp}", "New OTP")
 
     return {"message": "New OTP sent"}
 
 #This endpoint for forget password
 @app.post("/forgot-password", tags=["🔐 AUTH PANEL"])
-def forgot_password(email: str, db: Session = Depends(get_db)):
+def forgot_password(email: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == email).first()
 
     if not user:
@@ -242,7 +234,7 @@ def forgot_password(email: str, db: Session = Depends(get_db)):
     user.reset_token_expiry = expiry
     db.commit()
     # send email
-    send_email(email, f"Your password reset OTP is {token}", subject="Password Reset OTP")
+    background_tasks.add_task(_send_email_sync, email, f"Your password reset OTP is {token}", "Password Reset OTP")
 
     return {"message": "Reset OTP sent to email"}
 

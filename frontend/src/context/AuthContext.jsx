@@ -10,6 +10,30 @@ export const useAuth = () => {
   return context;
 };
 
+// Decode JWT token payload (without verification — just reading claims)
+const decodeToken = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return null;
+  }
+};
+
+// Check if a token is expired
+const isTokenExpired = (token) => {
+  const payload = decodeToken(token);
+  if (!payload || !payload.exp) return true;
+  return Date.now() >= payload.exp * 1000;
+};
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -26,12 +50,32 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const initAuth = async () => {
       if (token) {
+        // Check if token is expired
+        if (isTokenExpired(token)) {
+          logout();
+          setLoading(false);
+          return;
+        }
+
         try {
           const profileRes = await userAPI.getProfile();
           setUser(profileRes.data);
           localStorage.setItem('user', JSON.stringify(profileRes.data));
         } catch {
-          logout();
+          // Fallback: decode token to get user info
+          const payload = decodeToken(token);
+          if (payload && payload.user_id) {
+            const userData = {
+              id: payload.user_id,
+              name: payload.name || '',
+              email: payload.email || '',
+              role: payload.role || 'user',
+            };
+            setUser(userData);
+            localStorage.setItem('user', JSON.stringify(userData));
+          } else {
+            logout();
+          }
         }
       }
       setLoading(false);
@@ -47,12 +91,25 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('token', accessToken);
     setToken(accessToken);
 
-    // Fetch user profile
-    const profileRes = await userAPI.getProfile();
-    setUser(profileRes.data);
-    localStorage.setItem('user', JSON.stringify(profileRes.data));
-
-    return profileRes.data;
+    // Try to fetch full user profile
+    try {
+      const profileRes = await userAPI.getProfile();
+      setUser(profileRes.data);
+      localStorage.setItem('user', JSON.stringify(profileRes.data));
+      return profileRes.data;
+    } catch {
+      // Fallback: decode user info from the JWT token itself
+      const payload = decodeToken(accessToken);
+      const userData = {
+        id: payload?.user_id,
+        name: payload?.name || '',
+        email: payload?.email || email,
+        role: payload?.role || 'user',
+      };
+      setUser(userData);
+      localStorage.setItem('user', JSON.stringify(userData));
+      return userData;
+    }
   };
 
   const signup = async (name, email, password, role) => {
@@ -70,6 +127,7 @@ export const AuthProvider = ({ children }) => {
     signup,
     logout,
     setUser,
+    decodeToken,
   };
 
   return (

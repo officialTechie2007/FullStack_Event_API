@@ -27,7 +27,6 @@ const SignupPage = () => {
       toast.error('Password must be at least 6 characters');
       return;
     }
-
     setLoading(true);
     try {
       await signup(name, email, password, role);
@@ -123,22 +122,20 @@ const SignupPage = () => {
                 <button
                   type="button"
                   onClick={() => setRole('user')}
-                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    role === 'user'
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
-                      : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
-                  }`}
+                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all ${role === 'user'
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
+                    }`}
                 >
                   👤 User
                 </button>
                 <button
                   type="button"
                   onClick={() => setRole('admin')}
-                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all ${
-                    role === 'admin'
-                      ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
-                      : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
-                  }`}
+                  className={`px-4 py-3 rounded-xl border text-sm font-medium transition-all ${role === 'admin'
+                    ? 'border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]'
+                    : 'border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-muted)]'
+                    }`}
                 >
                   👑 Admin
                 </button>
